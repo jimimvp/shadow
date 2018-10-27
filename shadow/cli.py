@@ -18,11 +18,11 @@ def escape_chars(s):
 
 def decrypt_command(f, o, passphrase):
     command = f'gpg2 --batch'
-    subprocess.call(command.split(' ') + ['--passphrase','passphrase', '-o',o,'--decrypt',f])
+    subprocess.call(command.split(' ') + ['--passphrase',passphrase, '-o',o,'--decrypt',f])
 
 def encrypt_command(f, o, passphrase):
     command = f'gpg2 --batch --armor --cipher-algo aes256'
-    subprocess.call(command.split(' ') + ['--passphrase','passphrase', '-o',o,'-c',f])
+    subprocess.call(command.split(' ') + ['--passphrase',passphrase, '-o',o,'-c',f])
 
 
 def encrypt_method(directory, output, tar, algo, user):
@@ -96,7 +96,7 @@ def decrypt_method(directory, output, tar, algo, user):
 
 @click.command()
 @click.option('--encrypt/--decrypt', '-e', is_flag=True, default=False, help='Encrypt file or folder')
-@click.option('--directory', '-d', default='/Users/Jimmy/Desktop/Safe.asc', help='Target folder')
+@click.option('--directory', '-d', default=None, help='Target folder')
 @click.option('--tar', '-t', default=False, is_flag=True, help='Compress then encrypt')
 @click.option('--output', '-o', default='test', help='Output file')
 @click.option('--algo', '-a', default='aes256', help='Encryption algorithm')
