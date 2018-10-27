@@ -56,7 +56,7 @@ def encrypt_method(directory, output, tar, algo, user):
 
     output_names = {v:k for k,v in file_names.items()}
     pickle.dump(file_names, names_table)
-    output_names[names_table] = 'nt'
+    output_names[directory+'/names_table'] = 'nt'
     print(f'Scanned {len(file_paths)} files')
 
     #encrypt names table
