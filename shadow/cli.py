@@ -17,7 +17,7 @@ def escape_chars(s):
     return s
 
 def decrypt_command(f, o, passphrase):
-    command = f'gpg2 --batch --armor'
+    command = f'gpg2 --batch'
     subprocess.call(command.split(' ') + ['--passphrase','passphrase', '-o',o,'--decrypt',f])
 
 def encrypt_command(f, o, passphrase):
@@ -77,20 +77,28 @@ def decrypt_method(directory, output, tar, algo, user):
     
     if output is None:
         output_dec = directory.replace('.asc', '')
-
+    else:
+        output_dec = output
     file_names = {'nt' : directory+'/names_table'}
     os.makedirs(output_dec, exist_ok=True)
-    decrypt_command(output_dec+'/names_table', directory+'/nt', passphrase)
+    decrypt_command(directory+'/nt',output_dec+'/names_table', passphrase)
 
     names_table = pickle.load(open(output_dec+'/names_table', 'rb'))
     output_names = {v:k for k,v in file_names.items()}
 
 
+    for enc_name, real_name in tqdm(names_table.items(), desc='Decrypting'):
+        real_name = real_name.split('/')[-1]
+        output_file = f'{output_dec}/{real_name}'
+        input_file = f'{directory}/{enc_name}'
+        decrypt_command(input_file, output_file, passphrase)
+
+
 @click.command()
-@click.option('--encrypt/--decrypt', '-e', is_flag=True, default=True, help='Encrypt file or folder')
-@click.option('--directory', '-d', default='/Users/Jimmy/Desktop/Safe', help='Target folder')
+@click.option('--encrypt/--decrypt', '-e', is_flag=True, default=False, help='Encrypt file or folder')
+@click.option('--directory', '-d', default='/Users/Jimmy/Desktop/Safe.asc', help='Target folder')
 @click.option('--tar', '-t', default=False, is_flag=True, help='Compress then encrypt')
-@click.option('--output', '-o', default=None, help='Output file')
+@click.option('--output', '-o', default='test', help='Output file')
 @click.option('--algo', '-a', default='aes256', help='Encryption algorithm')
 @click.option('--user', '-u', default=None, help='Asymmetric public key encryption')
 def main(encrypt, directory, output, tar, algo, user):
