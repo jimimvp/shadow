@@ -1,6 +1,6 @@
 import click
 from tqdm import tqdm
-import getpass
+from getpass import getpass
 import os
 from subprocess import Popen, PIPE, STDOUT
 import subprocess
@@ -8,8 +8,6 @@ import tarfile
 from tqdm import tqdm
 import pickle
 import hashlib
-
-#gpg2 --batch --passphrase-fd 0 --armor -r edward --encrypt -c --cipher-algo aes256
 
 def escape_chars(s):
     for c in [',', ' ', '(', ')', '[', ']', '{', '}',]:
@@ -21,7 +19,6 @@ def decrypt_command(f, o, passphrase, algo='aes256'):
     subprocess.call(command.split(' ') + ['--passphrase',passphrase, '--output',o,'--decrypt',f])
 
 def encrypt_command(f, o, passphrase, algo='aes256'):
-    print(f, o)
     command = f'gpg --batch --quiet --cipher-algo {algo}'
     subprocess.call(command.split(' ') + ['--passphrase',passphrase, '--output',o,'-c',f])
 
@@ -37,20 +34,25 @@ def handle_existing(f, overwrite=True):
         os.remove(f)
     return True
  
+def regex_satisfied(f, regex):
+    if regex:
+        return regex in f 
+    else:
+        return True
 
-
-def encrypt_method(directory, output, tar, algo, user, overwrite):
+def encrypt_method(directory, output, tar, algo, user, overwrite, regex):
     passphrase = 'abs'
-    confirm = 'abs'
+    confirm = None
     while passphrase != confirm:
 
         passphrase = getpass('Passphrase:')
         
         for i in range(3):
             confirm = getpass('Confirm:')
-            if confirm == passhprase:
+            if confirm == passphrase:
                 break
     root_dir = os.path.abspath(directory)
+
     if output is None:
         output_tar = root_dir + '.gzip'
         output_tar_enc = output_tar + '.asc'
@@ -62,7 +64,7 @@ def encrypt_method(directory, output, tar, algo, user, overwrite):
     file_paths = []
 
 
-    os.makedirs(output, exist_ok=True)
+    os.makedirs(output_enc, exist_ok=True)
     names_table_f = open(root_dir+'/names_table', 'wb')
     c = 0
     for root, directories, files in tqdm(os.walk(root_dir), desc='Scanning files'):
@@ -85,17 +87,42 @@ def encrypt_method(directory, output, tar, algo, user, overwrite):
     file_paths = reversed(file_paths)
 
     for filepath, output_name in tqdm(output_names.items(), desc='Encrypting files'):
+        if not regex_satisfied(filepath, regex) and output_name!='nt':
+            continue
+
         output_path = f'{output_enc}/{output_name}'
-        if output_name == 'nt':
-            print('YSAY', filepath)
         if handle_existing(output_path, overwrite):
             encrypt_command(filepath, output_path, passphrase, algo)
 
+    os.remove(root_dir+'/names_table')
 
-def decrypt_method(directory, output, tar, algo, user, overwrite):
-    passphrase = 'abs'
 
-    #passphrase = getpass('Passphrase:')
+
+
+def list_encrypted(directory):
+
+    passphrase = getpass('Passphrase:')
+        
+    root_dir = os.path.abspath(directory)
+    
+    if output is None:
+        output_dec = root_dir.replace('.asc', '')
+    else:
+        output_dec = output
+    file_names = {'nt' : root_dir+'/names_table'}
+
+    if handle_existing('names_table', overwrite):
+        decrypt_command(root_dir+'/nt','names_table', passphrase, algo)
+    
+    names_table = pickle.load(open('names_table', 'rb'))
+    os.remove('names_table')
+    print(names_table.values())
+
+
+
+def decrypt_method(directory, output, tar, algo, user, overwrite, regex):
+
+    passphrase = getpass('Passphrase:')
         
     root_dir = os.path.abspath(directory)
     
@@ -112,7 +139,9 @@ def decrypt_method(directory, output, tar, algo, user, overwrite):
     output_names = {v:k for k,v in file_names.items()}
 
     for enc_name, relative_path in tqdm(names_table.items(), desc='Decrypting'):
-        relative_path = relative_path
+        if not regex_satisfied(relative_path, regex):
+            continue
+
         output_file = f'{output_dec}/{relative_path}'
         splitted = output_file.split('/')
         if len(splitted) > 1:
@@ -124,26 +153,21 @@ def decrypt_method(directory, output, tar, algo, user, overwrite):
 
 
 @click.command()
-@click.option('--encrypt/--decrypt', '-e', is_flag=True, default=True, help='Encrypt file or folder')
+@click.option('--encrypt/--decrypt', '-e', is_flag=True, default=True, help='Encrypt or decrypt')
 @click.option('--directory', '-d', default=None, help='Target folder')
 @click.option('--tar', '-t', default=False, is_flag=True, help='Compress then encrypt')
 @click.option('--output', '-o', default=None, help='Output file')
 @click.option('--algo', '-a', default='aes256', help='Encryption algorithm')
 @click.option('--user', '-u', default=None, help='Asymmetric public key encryption')
-@click.option('--overwrite', '-ow', default=False, help='Asymmetric public key encryption')
+@click.option('--overwrite', '-ow', default=False, is_flag=True, help='Asymmetric public key encryption')
 @click.option('--test', '-te', default=False, is_flag=True, help='Run test')
-def main(encrypt, directory, output, tar, algo, user, overwrite):
-    if encrypt and test:
-        output = '/Users/Jimmy/Desktop/safe_test.asc'
-        directory = '/Users/Jimmy/Desktop/safe_test'
-    elif test:
-        output = '/Users/Jimmy/Desktop/safe_test_dec'
-        directory = '/Users/Jimmy/Desktop/safe_test.asc'
-    
+@click.option('--regex', '-re', default=None, help='Only files that satisfy this regular expression')
+def main(encrypt, directory, output, tar, algo, user, overwrite, test, regex):
+
     if encrypt:
-        encrypt_method(directory, output, tar, algo, user, overwrite)
+        encrypt_method(directory, output, tar, algo, user, overwrite, regex)
     else:
-        decrypt_method(directory, output, tar, algo, user, overwrite)
+        decrypt_method(directory, output, tar, algo, user, overwrite, regex)
 
 
 if __name__ == '__main__':
